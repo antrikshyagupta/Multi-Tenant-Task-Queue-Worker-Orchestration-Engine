@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const prisma = require('../config/prisma');
 
+
 // POST /api/v1/tenants/register
 async function registerTenant(req, res) {
   try {
@@ -41,4 +42,18 @@ async function registerTenant(req, res) {
   }
 }
 
-module.exports = { registerTenant };
+
+
+// GET /api/v1/tenants/me
+
+async function getTenantProfile (req , res){
+// req.tenant which was attached by authenticateTenant middleware
+return res.json({
+    id: req.tenant.id,
+    name: req.tenant.name,
+    status: req.tenant.status,
+    plan_id: req.tenant.plan_id,
+    created_at: req.tenant.created_at,
+  });
+}
+module.exports = { registerTenant , getTenantProfile };

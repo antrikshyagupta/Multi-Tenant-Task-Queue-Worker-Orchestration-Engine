@@ -34,8 +34,12 @@ Client (API Key) → Express API → PostgreSQL (Jobs/Tenants) → BullMQ (Redis
 │   ├── app.js                 # Express app setup
 │   ├── config/
 │   │   └── prisma.js          # Prisma client singleton
-│   └── controllers/
-│       └── tenant.controller.js  # Tenant registration
+│   ├── controllers/
+│   │   └── tenant.controller.js  # Tenant registration & profile
+│   ├── middlewares/
+│   │   └── auth.middleware.js # API key authentication (x-api-key)
+│   └── routes/
+│       └── tenant.routes.js   # Tenant routes
 ├── prisma/
 │   ├── schema.prisma          # DB schema
 │   └── migrations/            # Migration history
@@ -67,21 +71,66 @@ node server.js
 | `DATABASE_URL` | PostgreSQL connection string | `postgresql://user:pass@localhost:5432/saas_db?schema=public` |
 | `PORT` | Server port | `3000` |
 
+## Authentication
+
+Protected endpoints require the `x-api-key` header:
+
+```http
+x-api-key: sk_live_...
+```
+
+The middleware hashes the provided API key with SHA-256, queries the database for an active matching tenant, and attaches the tenant object to `req.tenant`. Inactive or missing keys return `401 Unauthorized`.
+
 ## API
 
 ### Health Check
-```
+```http
 GET /health
-→ { "status": "ok", "message": "Platform API is alive!" }
+```
+**Response (200 OK):**
+```json
+{ "status": "ok", "message": "Platform API is alive!" }
 ```
 
 ### Register Tenant
-```
+```http
 POST /api/v1/tenants/register
-Body: { "name": "Acme Corp" }
-→ { "id": "...", "name": "Acme Corp", "status": "active", "apiKey": "sk_live_...", "message": "Save this API key securely..." }
+Content-Type: application/json
+
+{ "name": "Acme Corp" }
 ```
+**Response (201 Created):**
+```json
+{
+  "id": "c1f71df8-3d12-4c28-98e3-0c46dfc8e11b",
+  "name": "Acme Corp",
+  "status": "active",
+  "apiKey": "sk_live_...",
+  "message": "Save this API key securely. You will not be able to view it again."
+}
+```
+
+### Get Current Tenant Profile (Protected)
+```http
+GET /api/v1/tenants/me
+x-api-key: sk_live_...
+```
+**Response (200 OK):**
+```json
+{
+  "id": "c1f71df8-3d12-4c28-98e3-0c46dfc8e11b",
+  "name": "Acme Corp",
+  "status": "active",
+  "plan_id": null,
+  "created_at": "2026-11-13T17:15:29.000Z"
+}
+```
+
+**Error Responses:**
+- `401 Unauthorized`: Missing `x-api-key` header or invalid/inactive key
+- `500 Internal Server Error`: Server failure
 
 ## License
 
 ISC
+
