@@ -62,6 +62,113 @@ const createJob = async (req, res, next) => {
   }
 };
 
+const listJobs = async (req, res, next) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
+    const skip = (page - 1) * limit;
+    const { status } = req.query;
+
+    const where = {
+      tenant_id: req.tenant.id, // Strict tenant isolation
+      ...(status ? { status: status.toUpperCase() } : {}),
+    };
+
+    const [jobs, total] = await prisma.$transaction([
+      prisma.job.findMany({
+        where,
+        orderBy: { created_at: 'desc' },
+        skip,
+        take: limit,
+      }),
+      prisma.job.count({ where }),
+    ]);
+
+    return res.status(200).json({
+      data: jobs,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getJobById = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const job = await prisma.job.findFirst({
+      where: {
+        id,
+        tenant_id: req.tenant.id, // Prevents Tenant B from inspecting Tenant A's job
+      },
+      include: {
+        executions: {
+          orderBy: { attempt_number: 'asc' },
+        },
+      },
+    });
+
+    if (!job) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+
+    return res.status(200).json({ job });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const cancelJob = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const job = await prisma.job.findFirst({
+      where: {
+        id,
+        tenant_id: req.tenant.id,
+      },
+    });
+
+    if (!job) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+
+    if (job.status !== 'QUEUED') {
+      return res.status(400).json({
+        error: `Cannot cancel job in "${job.status}" state. Only QUEUED jobs can be cancelled.`,
+      });
+    }
+
+    // Remove from BullMQ/Redis if still waiting
+    const bullJob = await jobQueue.getJob(id);
+    if (bullJob) {
+      await bullJob.remove();
+    }
+
+    // Update PostgreSQL status
+    const updatedJob = await prisma.job.update({
+      where: { id },
+      data: { status: 'CANCELLED' },
+    });
+
+    return res.status(200).json({
+      message: 'Job cancelled successfully',
+      job: updatedJob,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   createJob,
+  listJobs,
+  getJobById,
+  cancelJob,
 };

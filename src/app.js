@@ -22,4 +22,13 @@ app.use('/api/v1/tenants', tenantRoutes);
 // Mount alongside your tenant routes:
 app.use('/api/v1/jobs', jobRoutes);
 
+// Centralized JSON error handler
+app.use((err, req, res, next) => {
+  console.error(err);
+  const status = err.status || err.statusCode || 500;
+  res.status(status).json({
+    error: err.message || 'Internal server error',
+  });
+});
+
 module.exports = app;

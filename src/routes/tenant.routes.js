@@ -1,18 +1,23 @@
 const express = require('express');
-const { registerTenant , getTenantProfile } = require('../controllers/tenant.controller');
+const router = express.Router();
+const {
+  registerTenant,
+  getTenantProfile,
+  updateTenantPlan,
+  createApiKey,
+  listApiKeys,
+  revokeApiKey,
+} = require('../controllers/tenant.controller');
 const { authenticateTenant } = require('../middlewares/auth.middleware');
 
-const router = express.Router() ;
+// Public route
+router.post('/register', registerTenant);
 
-
-
-// post method -> registering tenant
-router.post('/register' , registerTenant);
-
-
-//protected route i.e authenticate before getting tenant's profile
+// Protected tenant routes
 router.get('/me', authenticateTenant, getTenantProfile);
+router.patch('/plan', authenticateTenant, updateTenantPlan);
+router.post('/api-keys', authenticateTenant, createApiKey);
+router.get('/api-keys', authenticateTenant, listApiKeys);
+router.delete('/api-keys/:id', authenticateTenant, revokeApiKey);
 
-
-
-module.exports = router ;
+module.exports = router;
