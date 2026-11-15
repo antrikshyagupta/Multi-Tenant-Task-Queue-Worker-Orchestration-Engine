@@ -11,8 +11,11 @@ const createJob = async (req, res, next) => {
 
     // Optional Idempotency Check: return existing job if key was already used
     if (idempotency_key) {
-      const existingJob = await prisma.job.findUnique({
-        where: { idempotency_key },
+      const existingJob = await prisma.job.findFirst({
+        where: {
+          idempotency_key,
+          tenant_id: req.tenant.id
+        },
       });
       if (existingJob) {
         return res.status(200).json({

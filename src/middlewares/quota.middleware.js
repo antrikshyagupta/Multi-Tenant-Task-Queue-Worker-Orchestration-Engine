@@ -42,7 +42,7 @@ const rateLimitTenant = async (req, res, next) => {
 };
 
 /**
- * 2. Job Submission Quota Check (Payload Size + Max Queued Jobs)
+ * 2. Job Submission Quota Check (Payload Size + Max Queued Jobs + Max Concurrent Jobs)
  */
 const checkJobQuotas = async (req, res, next) => {
   try {
@@ -69,6 +69,20 @@ const checkJobQuotas = async (req, res, next) => {
     if (queuedCount >= plan.max_queued_jobs) {
       return res.status(429).json({
         error: `Queued job quota exceeded (${queuedCount}/${plan.max_queued_jobs}). Upgrade your plan or wait for queued jobs to finish.`,
+      });
+    }
+
+    // C. Max Concurrent Jobs Validation
+    const processingCount = await prisma.job.count({
+      where: {
+        tenant_id: req.tenant.id,
+        status: 'PROCESSING',
+      },
+    });
+
+    if (processingCount >= plan.max_concurrent_jobs) {
+      return res.status(429).json({
+        error: `Concurrent job limit reached (${processingCount}/${plan.max_concurrent_jobs}). Wait for running jobs to complete.`,
       });
     }
 
