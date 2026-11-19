@@ -4,6 +4,7 @@ const os = require('os');
 const redisConnection = require('./src/config/redis');
 const prisma = require('./src/config/prisma');
 const { executeJobHandler } = require('./src/workers/job.handlers');
+const logger = require('./src/config/logger');
 
 const WORKER_ID = `worker-${os.hostname()}-${process.pid}`;
 
@@ -89,7 +90,7 @@ const worker = new Worker(
 
       await prisma.$transaction(dbUpdates);
 
-      console.error(
+      logger.error(
         `[${WORKER_ID}] Job ${jobId} failed (Attempt #${attemptNumber}/${maxAttempts}): ${error.message}`
       );
       throw error; // Re-throw so BullMQ triggers exponential backoff retry
